@@ -11,6 +11,10 @@ import (
 	// "github.com/stretchr/testify/require"
 )
 
+type Expectable interface {
+	ExpectDisplay() string
+}
+
 // TODO: a function might run multiple times.. we should not modify that line multiple times. Probably just the first time!
 // Not sure how relavant this really is though...
 var EditedLines = make(map[string]int) // file -> line number
@@ -48,7 +52,7 @@ func equal(t *testing.T, actual, expected any) {
 	if !reflect.DeepEqual(expected, actual) {
 		switch expected.(type) {
 		case string:
-			if !reflect.DeepEqual(expected, valueString(actual)) {
+			if !reflect.DeepEqual(expected, strings.Trim(strings.Trim(valueString(actual), "\""), "`")) {
 				t.Errorf("Expected string value does not match:\nExpected: %s\nActual: %s", expected, valueString(actual))
 				t.FailNow()
 			}
@@ -101,6 +105,7 @@ func getCurrentFileAndLine() (string, int) {
 	return file, line
 }
 
+// It adds '"' or '`' for strings and other types. Not for numbers, nil or booleans.
 func valueString(value any) string {
 	switch v := value.(type) {
 	case string:
@@ -113,14 +118,11 @@ func valueString(value any) string {
 		return "map[string]any{" + fmt.Sprintf("%v", v) + "}"
 	case bool:
 		return fmt.Sprintf("%t", v)
-	case fmt.Stringer:
-		return fmt.Sprintf("\"%s\"", v.String())
+	case Expectable:
+		return fmt.Sprintf("\"%s\"", v.ExpectDisplay())
 	default:
-		// TODO: Handle more types as needed
-		// spit out json if we can
-		// spit out json if we can
 		if b, err := json.MarshalIndent(v, " ", " "); err == nil {
-			return fmt.Sprintf("`\n	%s\n	`", b)
+			return fmt.Sprintf("`\n %s`", b)
 		}
 		return fmt.Sprintf("\"%+v\"", v) // TODO: should probably just fail here
 	}
