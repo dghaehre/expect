@@ -1,7 +1,6 @@
 package expect
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -10,30 +9,39 @@ type TestStruct struct {
 	Age  int
 }
 
-type ExpectStruct struct {
-	Name string
-	Age  int
-}
-
-func (t ExpectStruct) ExpectDisplay() string {
-	return fmt.Sprintf("TestStruct{Name: %s, Age: %d}", t.Name, t.Age)
-}
-
 func TestExpect(t *testing.T) {
-	Test(t, "hey", "hey")
-	Test(t, 1, 1)
-	Test(t, 100_000, 100000)
-	Test(t, TestStruct{}, `
- {
+	Equal(t, "hey", "hey")
+	Equal(t, 1, 1)
+	Equal(t, 100_000, 100000)
+	Equal(t, 3.14, 3.14)
+
+	JsonEqual(t, TestStruct{}, `
+{
   "Name": "",
   "Age": 0
  }`)
 
-	Test(t, map[string]int{"a": 1, "b": 2}, `
- {
-  "a": 1,
-  "b": 2
+	JsonEqual(t, TestStruct{}, `
+{
+  "Name": "",
+  "Age": 0
  }`)
 
-	Test(t, ExpectStruct{}, "TestStruct{Name: , Age: 0}")
+	JsonEqual(t, map[int]string{1: "one", 2: "two"}, `
+{
+  "1": "one",
+  "2": "two"
+ }`)
+
+	Equal(t, TestStruct{}.Name, "")
+	Equal(t, TestStruct{}.Age, 0)
+	Equal(t, nil, nil)
+}
+
+func TestOne(t *testing.T) {
+	Equal(t, "one", "one")
+}
+
+func TestTwo(t *testing.T) {
+	Equal(t, "two", "two")
 }
