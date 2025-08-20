@@ -112,11 +112,6 @@ func jsonStringEqual(a, b string) bool {
 	return reflect.DeepEqual(aa, bb)
 }
 
-func stringEqual(a, b string) bool {
-	aa := strings.Trim(a, "\"")
-	return reflect.DeepEqual(aa, b)
-}
-
 func addValueToFile(t *testing.T, file string, line int, value string) {
 	// Read the file
 	content, err := os.ReadFile(file)
@@ -183,7 +178,12 @@ func updateLines(file string, line int) int {
 func valueString(value any) string {
 	switch v := value.(type) {
 	case string:
-		return fmt.Sprintf("\"%s\"", v)
+		multiline := len(strings.Split(v, "\n")) > 1
+		if multiline {
+			return fmt.Sprintf("`%s`", v)
+		} else {
+			return fmt.Sprintf("\"%s\"", v)
+		}
 	case int, int64, float64, float32, uint, uint64:
 		return fmt.Sprintf("%v", v)
 	case nil:

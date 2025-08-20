@@ -10,7 +10,17 @@ type TestStruct struct {
 }
 
 func TestExpect(t *testing.T) {
+	hey := "hey"
 	Equal(t, "hey", "hey")
+	Equal(t, hey, "hey")
+	heyhey := `
+	hey
+
+	hey`
+	Equal(t, heyhey, `
+	hey
+
+	hey`)
 	Equal(t, 1, 1)
 	Equal(t, 100_000, 100000)
 	Equal(t, 3.14, 3.14)
