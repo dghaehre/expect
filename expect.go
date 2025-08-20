@@ -146,9 +146,6 @@ func addValueToFile(t *testing.T, file string, line int, value string) {
 			line:       line,
 			addedLines: addedLines,
 		})
-		fmt.Printf("Added %d lines to %s at line %d\n", addedLines, file, line)
-	} else {
-		fmt.Printf("Updated %s at line %d\n", file, line)
 	}
 }
 
@@ -157,10 +154,10 @@ func getCurrentFileAndLine() (string, int) {
 	if !ok {
 		return "unknown", 0
 	}
-	fmt.Printf("%s:%d", file, line)
 	return file, updateLines(file, line)
 }
 
+// Update line number based on edited lines
 func updateLines(file string, line int) int {
 	if len(editedLines) == 0 {
 		return line
@@ -188,7 +185,8 @@ func valueString(value any) string {
 		return fmt.Sprintf("%v", v)
 	case nil:
 		return "nil"
-	case map[string]any: // TODO: Should be used with json I think.
+	case map[string]any:
+		// TODO: Should return error to indicate that this is not supported and use JsonEqual instead.
 		return "map[string]any{" + fmt.Sprintf("%v", v) + "}"
 	case bool:
 		return fmt.Sprintf("%t", v)
