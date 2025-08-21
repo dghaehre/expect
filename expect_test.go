@@ -72,6 +72,8 @@ func TestExpect(t *testing.T) {
   "Age": 0,
   "Enum": "",
   "Number": 0,
+  "Float": 0,
+  "Result": ""
  }`)
 
 	JsonEqual(t, map[int]string{1: "one", 2: "two"}, `
