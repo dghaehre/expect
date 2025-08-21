@@ -4,9 +4,31 @@ import (
 	"testing"
 )
 
+type StringEnum string
+
+type IntEnum int
+
+type FloatEnum float64
+
+const (
+	OneIntEnum IntEnum = iota
+	TwoIntEnum IntEnum = 2
+
+	OneFloatEnum FloatEnum = 1.0
+	TwoFloatEnum FloatEnum = 2.0
+)
+
+const (
+	One StringEnum = "one"
+	Two StringEnum = "two"
+)
+
 type TestStruct struct {
-	Name string
-	Age  int
+	Name   string
+	Age    int
+	Enum   StringEnum
+	Number IntEnum
+	Float  FloatEnum
 }
 
 func TestExpect(t *testing.T) {
@@ -28,13 +50,19 @@ func TestExpect(t *testing.T) {
 	JsonEqual(t, TestStruct{}, `
 {
   "Name": "",
-  "Age": 0
+  "Age": 0,
+  "Enum": "",
+  "Number": 0,
+  "Float": 0
  }`)
 
 	JsonEqual(t, TestStruct{}, `
 {
   "Name": "",
-  "Age": 0
+  "Age": 0,
+  "Enum": "",
+  "Number": 0,
+  "Float": 0
  }`)
 
 	JsonEqual(t, map[int]string{1: "one", 2: "two"}, `
@@ -54,6 +82,15 @@ func TestExpect(t *testing.T) {
 
 	Equal(t, TestStruct{}.Name, "")
 	Equal(t, TestStruct{}.Age, 0)
+
+	ts := TestStruct{
+		Enum:   One,
+		Number: OneIntEnum,
+		Float:  OneFloatEnum,
+	}
+	Equal(t, ts.Enum, StringEnum("one"))
+	Equal(t, ts.Number, IntEnum(0))
+	Equal(t, ts.Float, FloatEnum(1.000000))
 }
 
 func TestOne(t *testing.T) {

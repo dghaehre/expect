@@ -1,3 +1,3 @@
-# Go expect
+# Expect
 
-A test libary that completes your tests.
+A go test libary that completes your tests for you!

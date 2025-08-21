@@ -308,13 +308,41 @@ func valueString(value any) string {
 	case nil:
 		return "nil"
 	case map[string]any:
-		// TODO: Should return error to indicate that this is not supported and use JsonEqual instead.
+		// TODO: Should probably return error to indicate that this is not supported and use JsonEqual instead.
 		return "map[string]any{" + fmt.Sprintf("%v", v) + "}"
 	case bool:
 		return fmt.Sprintf("%t", v)
 	default:
-		return fmt.Sprintf("\"%+v\"", v) // TODO: should probably just fail here
+		// Check if it's a type alias
+		t := reflect.TypeOf(v)
+		switch t.Kind() {
+		case reflect.String:
+			return fmt.Sprintf("%s(\"%s\")", t.Name(), reflect.ValueOf(v).String())
+		case reflect.Int, reflect.Int64, reflect.Float64, reflect.Float32, reflect.Uint, reflect.Uint64:
+			number, ok := numberFromAny(v)
+			if !ok {
+				panic(fmt.Sprintf("Unsupported type: %T, %s", v, reflect.TypeOf(v).Name()))
+			}
+			return fmt.Sprintf("%s(%s)", t.Name(), number)
+		default:
+			// not alias type
+		}
+		// TODO: use error or t.Fail() isntead
+		panic(fmt.Sprintf("Unsupported type: %T, %s", v, reflect.TypeOf(v).Name()))
 	}
+}
+
+func numberFromAny(v any) (string, bool) {
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return fmt.Sprintf("%d", rv.Int()), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return fmt.Sprintf("%d", rv.Uint()), true
+	case reflect.Float32, reflect.Float64:
+		return fmt.Sprintf("%f", rv.Float()), true
+	}
+	return "0", false
 }
 
 func jsonString(value any) (string, error) {
