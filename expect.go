@@ -21,11 +21,60 @@ type editedLine struct {
 	addedLines int
 }
 
+// If the test fail, we can override the expected value by setting the actual value
+var override = os.Getenv("EXPECT_OVERRIDE") == "true"
+
 var editedLines []editedLine = make([]editedLine, 0)
 
 func NoError(t *testing.T, err error) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
+	}
+}
+
+func CensorDigits(s any) string {
+	switch s := s.(type) {
+	case string:
+		return strings.Map(func(r rune) rune {
+			if r >= '0' && r <= '9' {
+				return 'X'
+			}
+			return r
+		}, s)
+	case int, int64, float64, float32, uint, uint64:
+		return CensorDigits(fmt.Sprintf("%v", s))
+	default:
+		return fmt.Sprintf("%v", s) // Just return the string representation
+	}
+}
+
+func CensorChars(s any) string {
+	switch s := s.(type) {
+	case string:
+		return strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				return 'X'
+			}
+			return r
+		}, s)
+	default:
+		return fmt.Sprintf("%v", s) // Just return the string representation
+	}
+}
+
+func CensorAlphanumeric(s any) string {
+	switch s := s.(type) {
+	case string:
+		return strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+				return 'X'
+			}
+			return r
+		}, s)
+	case int, int64, float64, float32, uint, uint64:
+		return CensorAlphanumeric(fmt.Sprintf("%v", s))
+	default:
+		return fmt.Sprintf("%v", s) // Just return the string representation
 	}
 }
 
@@ -53,6 +102,9 @@ func JsonEqual(t *testing.T, args ...any) {
 				expected, err := jsonString(args[0])
 				if err != nil {
 					t.Fatalf("Failed to marshal expected value to JSON: %v", err)
+				}
+				if override {
+					// TODO: allow for overriding json value (multiline)
 				}
 				t.Fatalf("%v\ndoes not equal %s", expected, s)
 			}
@@ -87,10 +139,13 @@ func Equal(t *testing.T, args ...any) {
 	}
 
 	if len(args) == 2 {
-		// Normal test! nice this should be easy!
-		// But using require here kind of ruins it, as the output of a failing
-		// test here will not make sense for the user.
-		equal(t, args[0], args[1])
+		e := equal(args[0], args[1])
+		if !e && override {
+			// Overide the value
+			changeValueToFile(t, file, line, valueString(packageName, args[0]))
+		} else if !e {
+			t.Fatalf("Expected values do not match:\nExpected: %+v\nActual:   %+v", valueString("", args[1]), valueString("", args[0]))
+		}
 		return
 	}
 
@@ -164,11 +219,8 @@ func getMapKeys(input any) []string {
 	return keys
 }
 
-func equal(t *testing.T, actual any, expected any) {
-	// Does not need package name for this.. I think..
-	if !reflect.DeepEqual(expected, actual) && !reflect.DeepEqual(valueString("", expected), valueString("", actual)) {
-		t.Fatalf("Expected values do not match:\nExpected: %+v\nActual:   %+v", valueString("", expected), valueString("", actual))
-	}
+func equal(actual any, expected any) bool {
+	return reflect.DeepEqual(expected, actual) || reflect.DeepEqual(valueString("", expected), valueString("", actual))
 }
 
 // Expects expected to be json output
@@ -186,6 +238,47 @@ func jsonStringEqual(a, b string) bool {
 	aa = strings.TrimSpace(aa)
 	bb = strings.TrimSpace(bb)
 	return reflect.DeepEqual(aa, bb)
+}
+
+func changeValueToFile(t *testing.T, file string, line int, value string) {
+	if strings.Contains(value, "\n") {
+		t.Fatalf("Expected a single line value, got a multiline value. Currently not supported.")
+		return
+	}
+	// Read the file
+	content, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+		return
+	}
+	lines := strings.Split(string(content), "\n")
+	if line-1 < 0 || line-1 >= len(lines) {
+		t.Fatalf("Invalid line number: %d", line)
+		return
+	}
+	lines[line-1] = strings.TrimRight(lines[line-1], " ") // remove trailing spaces
+	// last character is a closing parenthesis
+	if !strings.HasSuffix(lines[line-1], ")") {
+		t.Fatalf("Expected a single line value to edit, got: %s. Multiple value edit not supported.", lines[line-1])
+		return
+	}
+
+	lines[line-1] = strings.TrimSuffix(lines[line-1], ")") // remove the ')'
+	// find the index of the second comma:
+	commaIndex := strings.LastIndex(lines[line-1], ",")
+	if commaIndex == -1 {
+		t.Fatalf("Expected a single line value to edit, got: %s. Multiple value edit not supported.", lines[line-1])
+		return
+	}
+	lines[line-1] = lines[line-1][:commaIndex+1] // keep everything
+	lines[line-1] += fmt.Sprintf(" %s)", value)  // add the new value
+
+	// Write back to the file
+	err = os.WriteFile(file, []byte(strings.Join(lines, "\n")), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+		return
+	}
 }
 
 func addValueToFile(t *testing.T, file string, line int, value string) {

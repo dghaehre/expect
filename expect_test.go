@@ -72,8 +72,6 @@ func TestExpect(t *testing.T) {
   "Age": 0,
   "Enum": "",
   "Number": 0,
-  "Float": 0,
-  "Result": ""
  }`)
 
 	JsonEqual(t, map[int]string{1: "one", 2: "two"}, `
@@ -109,6 +107,8 @@ func TestExpect(t *testing.T) {
 	Equal(t, ts.Result, somepackage.Result("success"))
 
 	Equal(t, time.Time{}, "0001-01-01 00:00:00 +0000 UTC")
+	Equal(t, CensorDigits(time.Time{}.String()), "XXXX-XX-XX XX:XX:XX +XXXX UTC")
+	Equal(t, CensorAlphanumeric("77034813-9a48-48fb-97d6-db989d0f1b10"), "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX")
 
 	Equal(t, StringStruct{}, "StringStruct \" in it")
 
@@ -120,11 +120,11 @@ func TestExpect(t *testing.T) {
 
 	m = Wrapper{
 		Maybe: &MaybeStruct{
-			Name: "test",
+			Name: "test something",
 			Age:  42,
 		},
 	}
-	Equal(t, m.Maybe, "{Name:test Age:42}")
+	Equal(t, m.Maybe, "{Name:test something Age:42}")
 }
 
 func TestOne(t *testing.T) {
