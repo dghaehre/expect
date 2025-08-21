@@ -43,9 +43,17 @@ func TestExpect(t *testing.T) {
   "2": "two"
  }`)
 
+	myMap := map[string]int{"one": 1, "two": 2}
+	Equal(t, myMap["one"], 1)
+	Equal(t, myMap["two"], 2)
+
+	Equal(t, TestStruct{}.Name, "")
 	Equal(t, TestStruct{}.Name, "")
 	Equal(t, TestStruct{}.Age, 0)
 	Equal(t, nil, nil)
+
+	Equal(t, TestStruct{}.Name, "")
+	Equal(t, TestStruct{}.Age, 0)
 }
 
 func TestOne(t *testing.T) {

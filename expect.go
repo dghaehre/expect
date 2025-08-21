@@ -26,9 +26,13 @@ func NoError(t *testing.T, err error) {
 
 // Validates the output as marshalled JSON.
 func JsonEqual(t *testing.T, args ...any) {
-	file, line := getCurrentFileAndLine()
 	if len(args) == 0 {
 		t.Fatalf("Expected at least one value, got none")
+		return
+	}
+	file, line, err := getCurrentFileAndLine()
+	if err != nil {
+		t.Fatalf("Could not retrieve caller information: %v", err)
 		return
 	}
 
@@ -67,9 +71,13 @@ func JsonEqual(t *testing.T, args ...any) {
 }
 
 func Equal(t *testing.T, args ...any) {
-	file, line := getCurrentFileAndLine()
 	if len(args) == 0 {
 		t.Fatalf("Expected at least one value, got none")
+		return
+	}
+	file, line, err := getCurrentFileAndLine()
+	if err != nil {
+		t.Fatalf("Could not retrieve caller information: %v", err)
 		return
 	}
 
@@ -87,6 +95,59 @@ func Equal(t *testing.T, args ...any) {
 	}
 
 	t.Fatalf("Expected at most two values, got %d", len(args))
+}
+
+// Fields expects a struct or a map[string|int]any as the second argument.
+//
+// Fields will then generate multiple tests for each field in the struct or map.
+func Fields(t *testing.T, arg any) {
+	file, line, err := getCurrentFileAndLine()
+	if err != nil {
+		t.Fatalf("Could not retrieve caller information: %v", err)
+		return
+	}
+
+	// TODO: support nested structs and maps
+	fields := make([]FieldValue, 0)
+	for _, key := range getStructKeys(arg) {
+		fields = append(fields, FieldValue{
+			FieldName: fmt.Sprintf(".%s", key),
+			Value:     valueString(reflect.ValueOf(arg).FieldByName(key).Interface()),
+		})
+	}
+	for _, key := range getMapKeys(arg) {
+		fields = append(fields, FieldValue{
+			FieldName: fmt.Sprintf("[\"%s\"]", key),
+			Value:     valueString(reflect.ValueOf(arg).MapIndex(reflect.ValueOf(key)).Interface()),
+		})
+	}
+
+	addLinesToFile(t, file, line, fields)
+}
+
+func getStructKeys(input any) []string {
+	v := reflect.ValueOf(input)
+	t := v.Type()
+	var keys []string
+	switch v.Kind() {
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			keys = append(keys, t.Field(i).Name)
+		}
+	}
+	return keys
+}
+
+func getMapKeys(input any) []string {
+	v := reflect.ValueOf(input)
+	var keys []string
+	switch v.Kind() {
+	case reflect.Map:
+		for _, k := range v.MapKeys() {
+			keys = append(keys, fmt.Sprintf("%v", k.Interface()))
+		}
+	}
+	return keys
 }
 
 func equal(t *testing.T, actual any, expected any) {
@@ -149,12 +210,73 @@ func addValueToFile(t *testing.T, file string, line int, value string) {
 	}
 }
 
-func getCurrentFileAndLine() (string, int) {
+type FieldValue struct {
+	FieldName string // either ["sdf"] or ".Sdf"
+	Value     string
+}
+
+// Used by Fields. Will write over the current line.
+func addLinesToFile(t *testing.T, file string, line int, values []FieldValue) {
+	if len(values) == 0 {
+		t.Fatalf("Expected at least one field value, got none")
+		return
+	}
+	// Read the file
+	content, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+		return
+	}
+
+	lines := strings.Split(string(content), "\n")
+	if line-1 < 0 || line-1 >= len(lines) {
+		t.Fatalf("Invalid line number: %d", line)
+		return
+	}
+
+	// Insert the value as a comment at the current line
+	// TODO: We might have a comment here, so we need to handle that!
+	// lines[line-1] = strings.TrimSpace(lines[line-1])
+	firstValue := values[0]
+	template := ""
+	lines[line-1] = strings.TrimSuffix(lines[line-1], ")")                 // remove the closing parenthesis
+	lines[line-1] = strings.Replace(lines[line-1], "Fields(", "Equal(", 1) // change Multi to Equal
+	template = strings.TrimRight(lines[line-1], " ")
+
+	lines[line-1] = template + firstValue.FieldName
+	lines[line-1] += fmt.Sprintf(", %s)", firstValue.Value)
+
+	for _, field := range values[1:] {
+		lines[line-1] += "\n"
+		lines[line-1] += template + field.FieldName
+		lines[line-1] += fmt.Sprintf(", %s)", field.Value)
+	}
+
+	addedLines := len(strings.Split(lines[line-1], "\n"))
+
+	// Write back to the file
+	err = os.WriteFile(file, []byte(strings.Join(lines, "\n")), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+		return
+	}
+	if addedLines > 0 {
+		editedLines = append(editedLines, editedLine{
+			file:       file,
+			line:       line,
+			addedLines: addedLines,
+		})
+	}
+
+	// TODO: run gofmt on the file after this!
+}
+
+func getCurrentFileAndLine() (string, int, error) {
 	_, file, line, ok := runtime.Caller(2)
 	if !ok {
-		return "unknown", 0
+		return "", 0, fmt.Errorf("could not retrieve caller information")
 	}
-	return file, updateLines(file, line)
+	return file, updateLines(file, line), nil
 }
 
 // Update line number based on edited lines
