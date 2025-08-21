@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+// TODO: some function to update tests (jsonEqual) with updated values.
 
 type editedLine struct {
 	file       string
@@ -30,7 +33,7 @@ func JsonEqual(t *testing.T, args ...any) {
 		t.Fatalf("Expected at least one value, got none")
 		return
 	}
-	file, line, err := getCurrentFileAndLine()
+	file, line, _, err := getCurrentFileAndLine()
 	if err != nil {
 		t.Fatalf("Could not retrieve caller information: %v", err)
 		return
@@ -75,7 +78,7 @@ func Equal(t *testing.T, args ...any) {
 		t.Fatalf("Expected at least one value, got none")
 		return
 	}
-	file, line, err := getCurrentFileAndLine()
+	file, line, packageName, err := getCurrentFileAndLine()
 	if err != nil {
 		t.Fatalf("Could not retrieve caller information: %v", err)
 		return
@@ -90,7 +93,7 @@ func Equal(t *testing.T, args ...any) {
 	}
 
 	if len(args) == 1 {
-		addValueToFile(t, file, line, valueString(args[0]))
+		addValueToFile(t, file, line, valueString(packageName, args[0]))
 		return
 	}
 
@@ -101,7 +104,7 @@ func Equal(t *testing.T, args ...any) {
 //
 // Fields will then generate multiple tests for each field in the struct or map.
 func Fields(t *testing.T, arg any) {
-	file, line, err := getCurrentFileAndLine()
+	file, line, packageName, err := getCurrentFileAndLine()
 	if err != nil {
 		t.Fatalf("Could not retrieve caller information: %v", err)
 		return
@@ -112,13 +115,13 @@ func Fields(t *testing.T, arg any) {
 	for _, key := range getStructKeys(arg) {
 		fields = append(fields, FieldValue{
 			FieldName: fmt.Sprintf(".%s", key),
-			Value:     valueString(reflect.ValueOf(arg).FieldByName(key).Interface()),
+			Value:     valueString(packageName, reflect.ValueOf(arg).FieldByName(key).Interface()),
 		})
 	}
 	for _, key := range getMapKeys(arg) {
 		fields = append(fields, FieldValue{
 			FieldName: fmt.Sprintf("[\"%s\"]", key),
-			Value:     valueString(reflect.ValueOf(arg).MapIndex(reflect.ValueOf(key)).Interface()),
+			Value:     valueString(packageName, reflect.ValueOf(arg).MapIndex(reflect.ValueOf(key)).Interface()),
 		})
 	}
 
@@ -271,12 +274,13 @@ func addLinesToFile(t *testing.T, file string, line int, values []FieldValue) {
 	// TODO: run gofmt on the file after this!
 }
 
-func getCurrentFileAndLine() (string, int, error) {
-	_, file, line, ok := runtime.Caller(2)
+func getCurrentFileAndLine() (string, int, string, error) {
+	pc, file, line, ok := runtime.Caller(2)
 	if !ok {
-		return "", 0, fmt.Errorf("could not retrieve caller information")
+		return "", 0, "", fmt.Errorf("could not retrieve caller information")
 	}
-	return file, updateLines(file, line), nil
+	packageName := strings.Split(path.Base(runtime.FuncForPC(pc).Name()), ".")[0]
+	return file, updateLines(file, line), packageName, nil
 }
 
 // Update line number based on edited lines
@@ -294,7 +298,8 @@ func updateLines(file string, line int) int {
 	return line
 }
 
-func valueString(value any) string {
+// TODO: better output if the aliastype("one") != "one"
+func valueString(packageName string, value any) string {
 	switch v := value.(type) {
 	case string:
 		multiline := len(strings.Split(v, "\n")) > 1
@@ -313,11 +318,17 @@ func valueString(value any) string {
 	case bool:
 		return fmt.Sprintf("%t", v)
 	default:
-		// Check if it's a type alias
+		// Might be a type alias. Support int or string aliases.
 		t := reflect.TypeOf(v)
+		packagePath := t.PkgPath()
+		pkgName := path.Base(packagePath)
+		pkgPrefix := ""
+		if packageName != "" && packageName != pkgName {
+			pkgPrefix = pkgName + "."
+		}
 		switch t.Kind() {
 		case reflect.String:
-			return fmt.Sprintf("%s(\"%s\")", t.Name(), reflect.ValueOf(v).String())
+			return fmt.Sprintf("%s%s(\"%s\")", pkgPrefix, t.Name(), reflect.ValueOf(v).String())
 		case reflect.Int, reflect.Int64, reflect.Float64, reflect.Float32, reflect.Uint, reflect.Uint64:
 			number, ok := numberFromAny(v)
 			if !ok {

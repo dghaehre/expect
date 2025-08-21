@@ -2,6 +2,8 @@ package expect
 
 import (
 	"testing"
+
+	"github.com/dghaehre/expect/somepackage"
 )
 
 type StringEnum string
@@ -29,6 +31,7 @@ type TestStruct struct {
 	Enum   StringEnum
 	Number IntEnum
 	Float  FloatEnum
+	Result somepackage.Result
 }
 
 func TestExpect(t *testing.T) {
@@ -53,16 +56,8 @@ func TestExpect(t *testing.T) {
   "Age": 0,
   "Enum": "",
   "Number": 0,
-  "Float": 0
- }`)
-
-	JsonEqual(t, TestStruct{}, `
-{
-  "Name": "",
-  "Age": 0,
-  "Enum": "",
-  "Number": 0,
-  "Float": 0
+  "Float": 0,
+  "Result": ""
  }`)
 
 	JsonEqual(t, map[int]string{1: "one", 2: "two"}, `
@@ -87,10 +82,12 @@ func TestExpect(t *testing.T) {
 		Enum:   One,
 		Number: OneIntEnum,
 		Float:  OneFloatEnum,
+		Result: somepackage.Success,
 	}
 	Equal(t, ts.Enum, StringEnum("one"))
 	Equal(t, ts.Number, IntEnum(0))
 	Equal(t, ts.Float, FloatEnum(1.000000))
+	Equal(t, ts.Result, somepackage.Result("success"))
 }
 
 func TestOne(t *testing.T) {
