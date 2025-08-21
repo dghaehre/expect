@@ -116,6 +116,15 @@ func TestExpect(t *testing.T) {
 	Equal(t, m.Maybe, nil)
 
 	Equal(t, m.Maybe, nil)
+	Equal(t, m.Maybe, nil)
+
+	m = Wrapper{
+		Maybe: &MaybeStruct{
+			Name: "test",
+			Age:  42,
+		},
+	}
+	Equal(t, m.Maybe, "{Name:test Age:42}")
 }
 
 func TestOne(t *testing.T) {

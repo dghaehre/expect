@@ -370,9 +370,11 @@ func valueString(packageName string, value any) string {
 		case fmt.Stringer:
 			// If the value implements fmt.Stringer, we can use its String method.
 			return fmt.Sprintf("\"%s\"", sanitizeString(v.(fmt.Stringer).String()))
+		case fmt.GoStringer:
+			// If the value implements fmt.Stringer, we can use its String method.
+			return fmt.Sprintf("\"%s\"", sanitizeString(v.(fmt.GoStringer).GoString()))
 		}
-		// TODO: use error or t.Fail() isntead
-		panic(fmt.Sprintf("Unsupported type: %T, %s", v, reflect.TypeOf(v).Name()))
+		return fmt.Sprintf("\"%+v\"", v)
 	}
 }
 
