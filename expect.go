@@ -154,8 +154,9 @@ func getMapKeys(input any) []string {
 }
 
 func equal(t *testing.T, actual any, expected any) {
-	if !reflect.DeepEqual(expected, actual) {
-		t.Fatalf("Expected values do not match:\nExpected: %v\nActual: %v", expected, actual)
+	// Does not need package name for this.. I think..
+	if !reflect.DeepEqual(expected, actual) && !reflect.DeepEqual(valueString("", expected), valueString("", actual)) {
+		t.Fatalf("Expected values do not match:\nExpected: %+v\nActual:   %+v", valueString("", expected), valueString("", actual))
 	}
 }
 
@@ -298,15 +299,22 @@ func updateLines(file string, line int) int {
 	return line
 }
 
+// Make sure " is handle as \"
+func sanitizeString(s string) string {
+	s = strings.ReplaceAll(s, "\"", "\\\"")
+	s = strings.ReplaceAll(s, "`", "\\`") // Handle backticks as well
+	return s
+}
+
 // TODO: better output if the aliastype("one") != "one"
 func valueString(packageName string, value any) string {
 	switch v := value.(type) {
 	case string:
 		multiline := len(strings.Split(v, "\n")) > 1
 		if multiline {
-			return fmt.Sprintf("`%s`", v)
+			return fmt.Sprintf("`%s`", sanitizeString(v))
 		} else {
-			return fmt.Sprintf("\"%s\"", v)
+			return fmt.Sprintf("\"%s\"", sanitizeString(v))
 		}
 	case int, int64, float64, float32, uint, uint64:
 		return fmt.Sprintf("%v", v)
@@ -328,7 +336,7 @@ func valueString(packageName string, value any) string {
 		}
 		switch t.Kind() {
 		case reflect.String:
-			return fmt.Sprintf("%s%s(\"%s\")", pkgPrefix, t.Name(), reflect.ValueOf(v).String())
+			return fmt.Sprintf("%s%s(\"%s\")", pkgPrefix, t.Name(), sanitizeString(reflect.ValueOf(v).String()))
 		case reflect.Int, reflect.Int64, reflect.Float64, reflect.Float32, reflect.Uint, reflect.Uint64:
 			number, ok := numberFromAny(v)
 			if !ok {
@@ -337,6 +345,12 @@ func valueString(packageName string, value any) string {
 			return fmt.Sprintf("%s(%s)", t.Name(), number)
 		default:
 			// not alias type
+		}
+
+		switch value.(type) {
+		case fmt.Stringer:
+			// If the value implements fmt.Stringer, we can use its String method.
+			return fmt.Sprintf("\"%s\"", sanitizeString(v.(fmt.Stringer).String()))
 		}
 		// TODO: use error or t.Fail() isntead
 		panic(fmt.Sprintf("Unsupported type: %T, %s", v, reflect.TypeOf(v).Name()))

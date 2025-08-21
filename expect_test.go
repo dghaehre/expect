@@ -2,6 +2,7 @@ package expect
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dghaehre/expect/somepackage"
 )
@@ -32,6 +33,12 @@ type TestStruct struct {
 	Number IntEnum
 	Float  FloatEnum
 	Result somepackage.Result
+}
+
+type StringStruct struct{}
+
+func (s StringStruct) String() string {
+	return "StringStruct \" in it"
 }
 
 func TestExpect(t *testing.T) {
@@ -88,6 +95,10 @@ func TestExpect(t *testing.T) {
 	Equal(t, ts.Number, IntEnum(0))
 	Equal(t, ts.Float, FloatEnum(1.000000))
 	Equal(t, ts.Result, somepackage.Result("success"))
+
+	Equal(t, time.Time{}, "0001-01-01 00:00:00 +0000 UTC")
+
+	Equal(t, StringStruct{}, "StringStruct \" in it")
 }
 
 func TestOne(t *testing.T) {
