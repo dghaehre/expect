@@ -13,6 +13,8 @@ import (
 
 // TODO: some function to update tests (jsonEqual) with updated values.
 
+// TODO: handle nested structs and maps in Fields
+
 type editedLine struct {
 	file       string
 	line       int
@@ -125,6 +127,13 @@ func Fields(t *testing.T, arg any) {
 		})
 	}
 
+	// If we have no fields, we can still add the value as a single field!
+	if len(fields) == 0 {
+		fields = append(fields, FieldValue{
+			FieldName: "",
+			Value:     valueString(packageName, arg),
+		})
+	}
 	addLinesToFile(t, file, line, fields)
 }
 
@@ -137,6 +146,8 @@ func getStructKeys(input any) []string {
 		for i := 0; i < v.NumField(); i++ {
 			keys = append(keys, t.Field(i).Name)
 		}
+		// TODO: somehow handle pointers..
+		// case reflect.Pointer:
 	}
 	return keys
 }
@@ -340,9 +351,17 @@ func valueString(packageName string, value any) string {
 		case reflect.Int, reflect.Int64, reflect.Float64, reflect.Float32, reflect.Uint, reflect.Uint64:
 			number, ok := numberFromAny(v)
 			if !ok {
-				panic(fmt.Sprintf("Unsupported type: %T, %s", v, reflect.TypeOf(v).Name()))
+				panic(fmt.Sprintf("could not convert number: %T, %s", v, reflect.TypeOf(v).Name()))
 			}
 			return fmt.Sprintf("%s(%s)", t.Name(), number)
+		case reflect.Pointer:
+			// If it's a pointer, we can dereference it to get the value.
+			if reflect.ValueOf(v).IsNil() {
+				return "nil"
+			}
+			// Dereference the pointer to get the value.
+			dereferencedValue := reflect.ValueOf(v).Elem().Interface()
+			return valueString(packageName, dereferencedValue)
 		default:
 			// not alias type
 		}

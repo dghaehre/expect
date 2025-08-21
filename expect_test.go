@@ -35,6 +35,15 @@ type TestStruct struct {
 	Result somepackage.Result
 }
 
+type MaybeStruct struct {
+	Name string
+	Age  int
+}
+
+type Wrapper struct {
+	Maybe *MaybeStruct
+}
+
 type StringStruct struct{}
 
 func (s StringStruct) String() string {
@@ -78,8 +87,11 @@ func TestExpect(t *testing.T) {
 	Equal(t, myMap["two"], 2)
 
 	Equal(t, TestStruct{}.Name, "")
-	Equal(t, TestStruct{}.Name, "")
 	Equal(t, TestStruct{}.Age, 0)
+	Equal(t, TestStruct{}.Enum, StringEnum(""))
+	Equal(t, TestStruct{}.Number, IntEnum(0))
+	Equal(t, TestStruct{}.Float, FloatEnum(0.000000))
+	Equal(t, TestStruct{}.Result, somepackage.Result(""))
 	Equal(t, nil, nil)
 
 	Equal(t, TestStruct{}.Name, "")
@@ -99,6 +111,11 @@ func TestExpect(t *testing.T) {
 	Equal(t, time.Time{}, "0001-01-01 00:00:00 +0000 UTC")
 
 	Equal(t, StringStruct{}, "StringStruct \" in it")
+
+	m := Wrapper{}
+	Equal(t, m.Maybe, nil)
+
+	Equal(t, m.Maybe, nil)
 }
 
 func TestOne(t *testing.T) {
