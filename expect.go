@@ -120,7 +120,10 @@ func JsonEqual(t *testing.T, args ...any) {
 			t.Fatalf("Failed to marshal value to JSON: %v", err)
 			return
 		}
-		addValueToFile(t, file, line, fmt.Sprintf("`\n%s`", js))
+		err = addValueToFile(file, line, fmt.Sprintf("`\n%s`", js))
+		if err != nil {
+			t.Fatal(err)
+		}
 		return
 	}
 
@@ -142,7 +145,10 @@ func Equal(t *testing.T, args ...any) {
 		e := equal(args[0], args[1])
 		if !e && override {
 			// Overide the value
-			changeValueToFile(t, file, line, valueString(packageName, args[0]))
+			err := changeValueToFile(file, line, valueString(packageName, args[0]))
+			if err != nil {
+				t.Fatal(err)
+			}
 		} else if !e {
 			t.Fatalf("Expected values do not match:\nExpected: %+v\nActual:   %+v", valueString("", args[1]), valueString("", args[0]))
 		}
@@ -150,7 +156,10 @@ func Equal(t *testing.T, args ...any) {
 	}
 
 	if len(args) == 1 {
-		addValueToFile(t, file, line, valueString(packageName, args[0]))
+		err := addValueToFile(file, line, valueString(packageName, args[0]))
+		if err != nil {
+			t.Fatal(err)
+		}
 		return
 	}
 
@@ -189,7 +198,10 @@ func Fields(t *testing.T, arg any) {
 			Value:     valueString(packageName, arg),
 		})
 	}
-	addLinesToFile(t, file, line, fields)
+	err = addLinesToFile(file, line, fields)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func getStructKeys(input any) []string {
@@ -240,35 +252,30 @@ func jsonStringEqual(a, b string) bool {
 	return reflect.DeepEqual(aa, bb)
 }
 
-func changeValueToFile(t *testing.T, file string, line int, value string) {
+func changeValueToFile(file string, line int, value string) error {
 	if strings.Contains(value, "\n") {
-		t.Fatalf("Expected a single line value, got a multiline value. Currently not supported.")
-		return
+		return fmt.Errorf("Expected a single line value, got a multiline value. Currently not supported.")
 	}
 	// Read the file
 	content, err := os.ReadFile(file)
 	if err != nil {
-		t.Fatalf("Failed to read file: %v", err)
-		return
+		return fmt.Errorf("Failed to read file: %v", err)
 	}
 	lines := strings.Split(string(content), "\n")
 	if line-1 < 0 || line-1 >= len(lines) {
-		t.Fatalf("Invalid line number: %d", line)
-		return
+		return fmt.Errorf("Invalid line number: %d", line)
 	}
 	lines[line-1] = strings.TrimRight(lines[line-1], " ") // remove trailing spaces
 	// last character is a closing parenthesis
 	if !strings.HasSuffix(lines[line-1], ")") {
-		t.Fatalf("Expected a single line value to edit, got: %s. Multiple value edit not supported.", lines[line-1])
-		return
+		return fmt.Errorf("Expected a single line value to edit, got: %s. Multiple value edit not supported.", lines[line-1])
 	}
 
 	lines[line-1] = strings.TrimSuffix(lines[line-1], ")") // remove the ')'
 	// find the index of the second comma:
 	commaIndex := strings.LastIndex(lines[line-1], ",")
 	if commaIndex == -1 {
-		t.Fatalf("Expected a single line value to edit, got: %s. Multiple value edit not supported.", lines[line-1])
-		return
+		return fmt.Errorf("Expected a single line value to edit, got: %s. Multiple value edit not supported.", lines[line-1])
 	}
 	lines[line-1] = lines[line-1][:commaIndex+1] // keep everything
 	lines[line-1] += fmt.Sprintf(" %s)", value)  // add the new value
@@ -276,23 +283,21 @@ func changeValueToFile(t *testing.T, file string, line int, value string) {
 	// Write back to the file
 	err = os.WriteFile(file, []byte(strings.Join(lines, "\n")), 0644)
 	if err != nil {
-		t.Fatalf("Failed to write file: %v", err)
-		return
+		return fmt.Errorf("Failed to write file: %v", err)
 	}
+	return nil
 }
 
-func addValueToFile(t *testing.T, file string, line int, value string) {
+func addValueToFile(file string, line int, value string) error {
 	// Read the file
 	content, err := os.ReadFile(file)
 	if err != nil {
-		t.Fatalf("Failed to read file: %v", err)
-		return
+		return fmt.Errorf("Failed to read file: %v", err)
 	}
 
 	lines := strings.Split(string(content), "\n")
 	if line-1 < 0 || line-1 >= len(lines) {
-		t.Fatalf("Invalid line number: %d", line)
-		return
+		return fmt.Errorf("Invalid line number: %d", line)
 	}
 
 	addedLines := len(strings.Split(value, "\n")) - 1
@@ -306,8 +311,7 @@ func addValueToFile(t *testing.T, file string, line int, value string) {
 	// Write back to the file
 	err = os.WriteFile(file, []byte(strings.Join(lines, "\n")), 0644)
 	if err != nil {
-		t.Fatalf("Failed to write file: %v", err)
-		return
+		return fmt.Errorf("Failed to write file: %v", err)
 	}
 	if addedLines > 0 {
 		editedLines = append(editedLines, editedLine{
@@ -316,6 +320,7 @@ func addValueToFile(t *testing.T, file string, line int, value string) {
 			addedLines: addedLines,
 		})
 	}
+	return nil
 }
 
 type FieldValue struct {
@@ -324,22 +329,19 @@ type FieldValue struct {
 }
 
 // Used by Fields. Will write over the current line.
-func addLinesToFile(t *testing.T, file string, line int, values []FieldValue) {
+func addLinesToFile(file string, line int, values []FieldValue) error {
 	if len(values) == 0 {
-		t.Fatalf("Expected at least one field value, got none")
-		return
+		return fmt.Errorf("Expected at least one field value, got none")
 	}
 	// Read the file
 	content, err := os.ReadFile(file)
 	if err != nil {
-		t.Fatalf("Failed to read file: %v", err)
-		return
+		return fmt.Errorf("Failed to read file: %v", err)
 	}
 
 	lines := strings.Split(string(content), "\n")
 	if line-1 < 0 || line-1 >= len(lines) {
-		t.Fatalf("Invalid line number: %d", line)
-		return
+		return fmt.Errorf("Invalid line number: %d", line)
 	}
 
 	// Insert the value as a comment at the current line
@@ -365,8 +367,7 @@ func addLinesToFile(t *testing.T, file string, line int, values []FieldValue) {
 	// Write back to the file
 	err = os.WriteFile(file, []byte(strings.Join(lines, "\n")), 0644)
 	if err != nil {
-		t.Fatalf("Failed to write file: %v", err)
-		return
+		return fmt.Errorf("Failed to write file: %v", err)
 	}
 	if addedLines > 0 {
 		editedLines = append(editedLines, editedLine{
@@ -375,8 +376,8 @@ func addLinesToFile(t *testing.T, file string, line int, values []FieldValue) {
 			addedLines: addedLines,
 		})
 	}
-
 	// TODO: run gofmt on the file after this!
+	return nil
 }
 
 func getCurrentFileAndLine() (string, int, string, error) {
